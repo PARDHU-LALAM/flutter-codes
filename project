@@ -1,0 +1,719 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'dart:math' as math;
+
+void main() {
+  runApp(ExpenseTrackerApp());
+}
+
+class ExpenseTrackerApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Expense Tracker Pro',
+      theme: ThemeData(
+        primarySwatch: Colors.deepPurple,
+        scaffoldBackgroundColor: Colors.grey[100],
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+      ),
+      home: ExpenseTrackerHome(),
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+class Expense {
+  String title;
+  double amount;
+  DateTime date;
+  String category;
+
+  Expense({
+    required this.title,
+    required this.amount,
+    required this.date,
+    required this.category,
+  });
+}
+
+class ExpenseTrackerHome extends StatefulWidget {
+  @override
+  _ExpenseTrackerHomeState createState() => _ExpenseTrackerHomeState();
+}
+
+class _ExpenseTrackerHomeState extends State<ExpenseTrackerHome> {
+  double balance = 0.0;
+  double totalIncome = 0.0;
+  double totalExpenses = 0.0;
+  List<Expense> expenses = [];
+  String searchQuery = '';
+  
+  final TextEditingController incomeController = TextEditingController();
+  final TextEditingController titleController = TextEditingController();
+  final TextEditingController amountController = TextEditingController();
+  final TextEditingController searchController = TextEditingController();
+  
+  DateTime selectedDate = DateTime.now();
+  String selectedCategory = 'Food';
+  bool isEditing = false;
+  int? editingIndex;
+
+  final List<String> categories = [
+    'Food',
+    'Transport',
+    'Shopping',
+    'Bills',
+    'Education',
+    'Clothing',
+    'Health',
+    'Entertainment',
+    'Others'
+  ];
+
+  final Map<String, IconData> categoryIcons = {
+    'Food': Icons.restaurant,
+    'Transport': Icons.directions_car,
+    'Shopping': Icons.shopping_bag,
+    'Bills': Icons.receipt,
+    'Education': Icons.school,
+    'Clothing': Icons.checkroom,
+    'Health': Icons.local_hospital,
+    'Entertainment': Icons.movie,
+    'Others': Icons.more_horiz,
+  };
+
+  final Map<String, Color> categoryColors = {
+    'Food': Colors.red,
+    'Transport': Colors.blue,
+    'Shopping': Colors.orange,
+    'Bills': Colors.yellow,
+    'Education': Colors.green,
+    'Clothing': Colors.purple,
+    'Health': Colors.pink,
+    'Entertainment': Colors.teal,
+    'Others': Colors.brown,
+  };
+
+  void addIncome() {
+    double amount = double.tryParse(incomeController.text) ?? 0;
+    if (amount > 0) {
+      setState(() {
+        balance += amount;
+        totalIncome += amount;
+        incomeController.clear();
+      });
+    }
+  }
+
+  void addOrUpdateExpense() {
+    String title = titleController.text.trim();
+    double amount = double.tryParse(amountController.text) ?? 0;
+
+    if (title.isEmpty || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please provide valid inputs')),
+      );
+      return;
+    }
+
+    if (isEditing && editingIndex != null) {
+      setState(() {
+        double oldAmount = expenses[editingIndex!].amount;
+        balance += oldAmount - amount;
+        totalExpenses += amount - oldAmount;
+        
+        expenses[editingIndex!] = Expense(
+          title: title,
+          amount: amount,
+          date: selectedDate,
+          category: selectedCategory,
+        );
+        
+        isEditing = false;
+        editingIndex = null;
+      });
+    } else {
+      if (balance >= amount) {
+        setState(() {
+          balance -= amount;
+          totalExpenses += amount;
+          expenses.add(Expense(
+            title: title,
+            amount: amount,
+            date: selectedDate,
+            category: selectedCategory,
+          ));
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Insufficient balance!')),
+        );
+        return;
+      }
+    }
+
+    titleController.clear();
+    amountController.clear();
+    selectedDate = DateTime.now();
+    selectedCategory = 'Food';
+  }
+
+  void editExpense(int index) {
+    setState(() {
+      Expense exp = expenses[index];
+      titleController.text = exp.title;
+      amountController.text = exp.amount.toString();
+      selectedDate = exp.date;
+      selectedCategory = exp.category;
+      isEditing = true;
+      editingIndex = index;
+    });
+  }
+
+  void deleteExpense(int index) {
+    setState(() {
+      Expense exp = expenses[index];
+      balance += exp.amount;
+      totalExpenses -= exp.amount;
+      expenses.removeAt(index);
+    });
+  }
+
+  List<Expense> getFilteredExpenses() {
+    if (searchQuery.isEmpty) return expenses;
+    return expenses.where((exp) =>
+      exp.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
+      exp.category.toLowerCase().contains(searchQuery.toLowerCase())
+    ).toList();
+  }
+
+  Map<String, double> getCategoryTotals() {
+    Map<String, double> totals = {};
+    for (var expense in expenses) {
+      totals[expense.category] = (totals[expense.category] ?? 0) + expense.amount;
+    }
+    return totals;
+  }
+
+  Future<void> selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null && picked != selectedDate) {
+      setState(() {
+        selectedDate = picked;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.deepPurple, Colors.purpleAccent],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: EdgeInsets.all(20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.account_balance_wallet, color: Colors.white, size: 32),
+                    SizedBox(width: 10),
+                    Text(
+                      'Expense Tracker Pro',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Content
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30),
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        // Stats Cards
+                        Row(
+                          children: [
+                            Expanded(child: _buildStatCard('Balance', balance, Colors.green)),
+                            SizedBox(width: 10),
+                            Expanded(child: _buildStatCard('Income', totalIncome, Colors.blue)),
+                            SizedBox(width: 10),
+                            Expanded(child: _buildStatCard('Expenses', totalExpenses, Colors.red)),
+                          ],
+                        ),
+                        SizedBox(height: 20),
+                        
+                        // Add Income Card
+                        _buildCard(
+                          'Add Income',
+                          Icons.attach_money,
+                          Column(
+                            children: [
+                              TextField(
+                                controller: incomeController,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  labelText: 'Income Amount',
+                                  border: OutlineInputBorder(),
+                                  prefixText: '₹ ',
+                                ),
+                              ),
+                              SizedBox(height: 10),
+                              ElevatedButton(
+                                onPressed: addIncome,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.deepPurple,
+                                  minimumSize: Size(double.infinity, 50),
+                                ),
+                                child: Text('Add Income', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 20),
+                        
+                        // Add Expense Card
+                        _buildCard(
+                          isEditing ? 'Edit Expense' : 'Add Expense',
+                          Icons.add_shopping_cart,
+                          Column(
+                            children: [
+                              TextField(
+                                controller: titleController,
+                                decoration: InputDecoration(
+                                  labelText: 'Title',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                              SizedBox(height: 10),
+                              TextField(
+                                controller: amountController,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  labelText: 'Amount',
+                                  border: OutlineInputBorder(),
+                                  prefixText: '₹ ',
+                                ),
+                              ),
+                              SizedBox(height: 10),
+                              InkWell(
+                                onTap: () => selectDate(context),
+                                child: InputDecorator(
+                                  decoration: InputDecoration(
+                                    labelText: 'Date',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                                      Icon(Icons.calendar_today, size: 20),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: 10),
+                              DropdownButtonFormField<String>(
+                                value: selectedCategory,
+                                decoration: InputDecoration(
+                                  labelText: 'Category',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: categories.map((category) {
+                                  return DropdownMenuItem(
+                                    value: category,
+                                    child: Row(
+                                      children: [
+                                        Icon(categoryIcons[category], size: 20),
+                                        SizedBox(width: 10),
+                                        Text(category),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    selectedCategory = value!;
+                                  });
+                                },
+                              ),
+                              SizedBox(height: 10),
+                              ElevatedButton(
+                                onPressed: addOrUpdateExpense,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isEditing ? Colors.orange : Colors.deepPurple,
+                                  minimumSize: Size(double.infinity, 50),
+                                ),
+                                child: Text(
+                                  isEditing ? 'Update Expense' : 'Add Expense',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 20),
+                        
+                        // Expense List Card
+                        _buildCard(
+                          'Expense List',
+                          Icons.list,
+                          Column(
+                            children: [
+                              TextField(
+                                controller: searchController,
+                                decoration: InputDecoration(
+                                  labelText: 'Search expenses...',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.search),
+                                ),
+                                onChanged: (value) {
+                                  setState(() {
+                                    searchQuery = value;
+                                  });
+                                },
+                              ),
+                              SizedBox(height: 10),
+                              getFilteredExpenses().isEmpty
+                                  ? Padding(
+                                      padding: EdgeInsets.all(20),
+                                      child: Text(
+                                        'No expenses found',
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      shrinkWrap: true,
+                                      physics: NeverScrollableScrollPhysics(),
+                                      itemCount: getFilteredExpenses().length,
+                                      itemBuilder: (context, index) {
+                                        Expense exp = getFilteredExpenses()[index];
+                                        int actualIndex = expenses.indexOf(exp);
+                                        return _buildExpenseItem(exp, actualIndex);
+                                      },
+                                    ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 20),
+                        
+                        // Analytics/Pie Chart Card
+                        if (expenses.isNotEmpty)
+                          _buildCard(
+                            'Analytics',
+                            Icons.pie_chart,
+                            Column(
+                              children: [
+                                Container(
+                                  height: 300,
+                                  child: CustomPaint(
+                                    size: Size(300, 300),
+                                    painter: PieChartPainter(
+                                      categoryTotals: getCategoryTotals(),
+                                      categoryColors: categoryColors,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: 20),
+                                _buildLegend(),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegend() {
+    Map<String, double> totals = getCategoryTotals();
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: totals.entries.map((entry) {
+        return Container(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: categoryColors[entry.key]!.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: categoryColors[entry.key]!),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: categoryColors[entry.key],
+                  shape: BoxShape.circle,
+                ),
+              ),
+              SizedBox(width: 6),
+              Text(
+                '${entry.key}: ₹${entry.value.toStringAsFixed(0)}',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildStatCard(String label, double value, Color color) {
+    return Container(
+      padding: EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 5),
+          Text(
+            '₹${value.toStringAsFixed(2)}',
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCard(String title, IconData icon, Widget content) {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: Colors.deepPurple),
+              SizedBox(width: 10),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 15),
+          content,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExpenseItem(Expense exp, int index) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(10),
+        border: Border(
+          left: BorderSide(color: Colors.deepPurple, width: 4),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(categoryIcons[exp.category], color: Colors.deepPurple),
+          SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exp.title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  '${exp.category} • ${DateFormat('dd MMM yyyy').format(exp.date)}',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            children: [
+              Text(
+                '₹${exp.amount.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Colors.red,
+                ),
+              ),
+              SizedBox(height: 5),
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.edit, size: 20),
+                    color: Colors.orange,
+                    onPressed: () => editExpense(index),
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints(),
+                  ),
+                  SizedBox(width: 10),
+                  IconButton(
+                    icon: Icon(Icons.delete, size: 20),
+                    color: Colors.red,
+                    onPressed: () => deleteExpense(index),
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    incomeController.dispose();
+    titleController.dispose();
+    amountController.dispose();
+    searchController.dispose();
+    super.dispose();
+  }
+}
+
+class PieChartPainter extends CustomPainter {
+  final Map<String, double> categoryTotals;
+  final Map<String, Color> categoryColors;
+
+  PieChartPainter({
+    required this.categoryTotals,
+    required this.categoryColors,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (categoryTotals.isEmpty) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2.5;
+    
+    double total = categoryTotals.values.fold(0, (sum, value) => sum + value);
+    double startAngle = -math.pi / 2;
+
+    categoryTotals.forEach((category, amount) {
+      double sweepAngle = (amount / total) * 2 * math.pi;
+      
+      final paint = Paint()
+        ..color = categoryColors[category] ?? Colors.grey
+        ..style = PaintingStyle.fill;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        true,
+        paint,
+      );
+
+      // Draw border
+      final borderPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        true,
+        borderPaint,
+      );
+
+      startAngle += sweepAngle;
+    });
+
+    // Draw center circle for donut effect
+    final centerPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(center, radius * 0.5, centerPaint);
+  }
+
+  @override
+  bool shouldRepaint(PieChartPainter oldDelegate) {
+    return true;
+  }
+}
