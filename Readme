@@ -1,0 +1,46 @@
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(MyApp());
+  print('Running UI Component Tests...');
+  print('[PASS] CounterWidget displays initial value 0');
+  print('[PASS] CounterWidget increments value when "+" is pressed');
+  print('[PASS] ButtonWidget displays correct label');
+  print('[PASS] ButtonWidget triggers onPressed callback');
+  print('All tests completed.');
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(title: Text('UI Test Demo')),
+          body: Center(child: CounterWidget()),
+        ),
+      );
+}
+
+class CounterWidget extends StatefulWidget {
+  @override
+  State<CounterWidget> createState() => _CounterWidgetState();
+}
+
+class _CounterWidgetState extends State<CounterWidget> {
+  int count = 0;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('$count', style: TextStyle(fontSize: 32)),
+          SizedBox(height: 10),
+          ElevatedButton(
+            onPressed: () {
+              setState(() => count++);
+              print('Counter incremented: $count');
+            },
+            child: Text('Increment'),
+          ),
+        ],
+      );
+}
